@@ -7,15 +7,10 @@ import {
   ResourceSubscription
 } from '@modelcontextprotocol/sdk';
 
-const RESOURCE_URI_SCHEME = 'example';
-const RESOURCE_URI_PATTERN = /^example:\/\/text\/(\d+)$/;
-const MAX_RESOURCES = 10;
-const UPDATE_INTERVAL_MS = 5000;
-
 export function registerResources(server: Server): void {
-  const staticTextResourceGetter: ResourceGetter = {
+  server.registerResourceGetter('example', {
     async getResource(uri: string): Promise<ResourceContent> {
-      const match = uri.match(RESOURCE_URI_PATTERN);
+      const match = uri.match(/^example:\/\/text\/(\d+)$/);
       if (!match) throw new Error(`Invalid resource URI: ${uri}`);
 
       const id = parseInt(match[1], 10);
@@ -23,10 +18,7 @@ export function registerResources(server: Server): void {
       return {
         type: ResourceContentType.TEXT,
         data: `This is example text resource #${id}`,
-        metadata: {
-          id,
-          createdAt: new Date().toISOString()
-        }
+        metadata: { id, createdAt: new Date().toISOString() }
       };
     },
 
@@ -35,25 +27,25 @@ export function registerResources(server: Server): void {
       nextPageToken?: string 
     }> {
       const startIndex = pageToken ? parseInt(pageToken, 10) : 0;
-      const resources = Array.from(
-        { length: Math.min(pageSize, MAX_RESOURCES - startIndex) },
-        (_, i) => ({
+      const resources = [];
+      
+      for (let i = 0; i < Math.min(pageSize, 10 - startIndex); i++) {
+        resources.push({
           uri: `example://text/${startIndex + i}`,
           name: `Example Text Resource ${startIndex + i}`,
           description: `An example text resource with ID ${startIndex + i}`
-        })
-      );
+        });
+      }
 
-      const nextPageToken = startIndex + pageSize < MAX_RESOURCES 
-        ? (startIndex + pageSize).toString() 
-        : undefined;
-
-      return { resources, nextPageToken };
+      return { 
+        resources, 
+        nextPageToken: startIndex + pageSize < 10 ? (startIndex + pageSize).toString() : undefined 
+      };
     },
 
     async subscribeToResource(uri: string, subscription: ResourceSubscription): Promise<void> {
       const interval = setInterval(() => {
-        const match = uri.match(RESOURCE_URI_PATTERN);
+        const match = uri.match(/^example:\/\/text\/(\d+)$/);
         if (!match) {
           clearInterval(interval);
           return;
@@ -63,16 +55,11 @@ export function registerResources(server: Server): void {
         subscription.update({
           type: ResourceContentType.TEXT,
           data: `This is example text resource #${id} (updated at ${new Date().toISOString()})`,
-          metadata: {
-            id,
-            updatedAt: new Date().toISOString()
-          }
+          metadata: { id, updatedAt: new Date().toISOString() }
         });
-      }, UPDATE_INTERVAL_MS);
+      }, 5000);
 
       subscription.onCancel(() => clearInterval(interval));
     }
-  };
-
-  server.registerResourceGetter(RESOURCE_URI_SCHEME, staticTextResourceGetter);
+  });
 }
