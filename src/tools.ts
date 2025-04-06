@@ -6,9 +6,9 @@ import {
   ProgressNotification
 } from '@modelcontextprotocol/sdk';
 
-/**
- * Register all tools with the MCP server
- */
+type ToolInputs = Record<string, unknown>;
+type ProgressHandler = { send: (notification: ProgressNotification) => void };
+
 export function registerTools(server: Server): void {
   const echoTool = new ToolBuilder()
     .setName('echo')
@@ -21,10 +21,9 @@ export function registerTools(server: Server): void {
         .setType('string')
         .build()
     )
-    .setHandler(async ({ inputs }: { inputs: Record<string, unknown> }) => {
-      const message = inputs.message as string;
-      return ToolResult.withTextContent(`Echo: ${message}`);
-    })
+    .setHandler(async ({ inputs }: { inputs: ToolInputs }) => 
+      ToolResult.withTextContent(`Echo: ${inputs.message as string}`)
+    )
     .build();
 
   const addTool = new ToolBuilder()
@@ -46,10 +45,8 @@ export function registerTools(server: Server): void {
         .setType('number')
         .build()
     )
-    .setHandler(async ({ inputs }: { inputs: Record<string, unknown> }) => {
-      const a = inputs.a as number;
-      const b = inputs.b as number;
-      const result = a + b;
+    .setHandler(async ({ inputs }: { inputs: ToolInputs }) => {
+      const result = (inputs.a as number) + (inputs.b as number);
       return ToolResult.withTextContent(`Result: ${result}`);
     })
     .build();
@@ -75,18 +72,17 @@ export function registerTools(server: Server): void {
         .setDefaultValue(5)
         .build()
     )
-    .setHandler(async ({ inputs, progress }: { inputs: Record<string, unknown>; progress: { send: (notification: ProgressNotification) => void } }) => {
+    .setHandler(async ({ inputs, progress }: { inputs: ToolInputs; progress: ProgressHandler }) => {
       const duration = inputs.duration as number;
       const steps = inputs.steps as number;
       const stepDuration = Math.floor(duration * 1000 / steps);
 
       for (let i = 1; i <= steps; i++) {
         await new Promise(resolve => setTimeout(resolve, stepDuration));
-        const progressPercent = (i / steps) * 100;
         progress.send(
           new ProgressNotification(
             `Completed step ${i} of ${steps}`,
-            progressPercent
+            (i / steps) * 100
           )
         );
       }
@@ -97,7 +93,5 @@ export function registerTools(server: Server): void {
     })
     .build();
 
-  server.registerTool(echoTool);
-  server.registerTool(addTool);
-  server.registerTool(longRunningTool);
+  [echoTool, addTool, longRunningTool].forEach(tool => server.registerTool(tool));
 }
